@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=0">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-touch-fullscreen" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="MobileOptimized" content="320">
+  <title>...</title>
+  <style>
+    /* 加载动画样式（保留原有精美效果） */
+    .container {
+      width: 100px;
+      height: 100px;
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      animation: rotate-move 2s ease-in-out infinite;
+      z-index: 9999;
+    }
+
+    .dot {
+      width: 15px;
+      height: 15px;
+      border-radius: 50%;
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      margin: auto;
+    }
+
+    .dot-3 {
+      background-color: #f74d75;
+      animation: dot-3-move 2s ease infinite;
+    }
+
+    .dot-2 {
+      background-color: #10beae;
+      animation: dot-2-move 2s ease infinite;
+    }
+
+    .dot-1 {
+      background-color: #ffe386;
+      animation: dot-1-move 2s ease infinite;
+    }
+
+    @keyframes dot-3-move {
+      20% { transform: scale(1) }
+      45% { transform: translateY(-18px) scale(.45) }
+      60% { transform: translateY(-25px) scale(.45) }
+      80% { transform: translateY(-25px) scale(.45) }
+      100% { transform: translateY(0px) scale(1) }
+    }
+
+    @keyframes dot-2-move {
+      20% { transform: scale(1) }
+      45% { transform: translate(-16px, 12px) scale(.45) }
+      60% { transform: translate(-20px, 15px) scale(.45) }
+      80% { transform: translate(-20px, 15px) scale(.45) }
+      100% { transform: translateY(0px) scale(1) }
+    }
+
+    @keyframes dot-1-move {
+      20% { transform: scale(1) }
+      45% { transform: translate(16px, 12px) scale(.45) }
+      60% { transform: translate(20px, 15px) scale(.45) }
+      80% { transform: translate(20px, 15px) scale(.45) }
+      100% { transform: translateY(0px) scale(1) }
+    }
+
+    @keyframes rotate-move {
+      55% { transform: translate(-50%, -50%) rotate(0deg) }
+      80% { transform: translate(-50%, -50%) rotate(360deg) }
+      100% { transform: translate(-50%, -50%) rotate(360deg) }
+    }
+
+    /* iframe样式 */
+    .content {
+      height: 100%;
+      width: 100%;
+      position: fixed;
+      left: 0;
+      top: 0;
+      border: 0;
+      display: none;
+    }
+
+    /* 错误提示样式 */
+    .error-box {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+      padding: 20px;
+      width: 80%;
+      max-width: 400px;
+      display: none;
+    }
+
+    .error-icon {
+      width: 80px;
+      height: 80px;
+      background: #f74d75;
+      border-radius: 50%;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 20px;
+    }
+
+    .error-icon i {
+      color: white;
+      font-size: 40px;
+    }
+
+    .error-title {
+      font-size: 18px;
+      color: #333;
+      margin-bottom: 10px;
+      font-weight: bold;
+    }
+
+    .error-desc {
+      font-size: 14px;
+      color: #666;
+      line-height: 1.5;
+    }
+
+    /* 通用样式重置 */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      overflow: hidden;
+      height: 100vh;
+    }
+  </style>
+  <!-- 引入字体图标（用于错误提示） -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css">
+</head>
+<body>
+  <!-- 加载动画 -->
+  <div class="container" id="loadingContainer">
+    <div class="dot dot-1"></div>
+    <div class="dot dot-2"></div>
+    <div class="dot dot-3"></div>
+  </div>
+
+  <!-- 错误提示容器 -->
+  <div class="error-box" id="errorBox">
+    <div class="error-icon">
+      <i class="fa fa-exclamation-circle"></i>
+    </div>
+    <div class="error-title" id="errorTitle">链接解析失败</div>
+    <div class="error-desc" id="errorDesc">请检查链接是否正确，或联系管理员重新生成</div>
+  </div>
+
+  <!-- 跳转iframe -->
+  <iframe class="content" id="jumpIframe"></iframe>
+
+  <script>
+    // 1. 修复后的Base64解码函数（兼容后端safe_base64_encode）
+    function safeBase64Decode(encodedStr) {
+      if (!encodedStr) return '';
+      // 还原后端替换的特殊字符：-→+，_→/
+      let decodedStr = encodedStr.replace(/-/g, '+').replace(/_/g, '/');
+      // 补全Base64必需的等号（长度需为4的倍数）
+      const padding = decodedStr.length % 4;
+      if (padding) {
+        decodedStr += '='.repeat(4 - padding);
+      }
+      // 标准解码
+      return atob(decodedStr);
+    }
+
+    // 2. 鼠标滚轮绑定函数（修复跨域问题）
+    var isFirefox = navigator.userAgent.indexOf('Firefox') != -1;
+    function handleMouseWheel(e, doc) {
+      e.preventDefault && e.preventDefault();
+      e.returnValue = false;
+      var isUp = isFirefox && e.detail < 0 || e.wheelDelta > 0;
+      doc.body.scrollTop = doc.documentElement.scrollTop += isUp ? -50 : 50;
+    }
+
+    function bindMouseWheel(iframe) {
+      try {
+        var doc = iframe.contentWindow.document;
+        if (isFirefox) {
+          doc.addEventListener('DOMMouseScroll', function(e) {
+            handleMouseWheel(e, doc);
+          }, false);
+        } else {
+          doc.onmousewheel = function(e) {
+            handleMouseWheel(e || iframe.contentWindow.event, doc);
+          };
+        }
+      } catch (e) {
+        // 跨域时静默处理，不弹提示（避免影响用户体验）
+        console.log('跨域无法绑定滚轮：', e.message);
+      }
+    }
+
+    // 3. 核心跳转逻辑
+    function jumpToTarget() {
+      // 获取URL参数c
+      const urlParams = new URLSearchParams(window.location.search);
+      const encodedParam = urlParams.get('c');
+
+      // 无参数直接显示错误
+      if (!encodedParam) {
+        showError('链接参数缺失', '未检测到跳转参数，请确认链接是否完整');
+        return;
+      }
+
+      try {
+        // 解码参数
+        const decodedStr = safeBase64Decode(encodedParam);
+        if (!decodedStr) {
+          showError('链接数据为空', '解码后未获取到有效跳转地址');
+          return;
+        }
+
+        // 解析JSON数据（兼容旧版纯URL格式）
+        let targetUrl = '';
+        let expireTime = 0;
+        try {
+          // 新版：JSON格式（包含有效期）
+          const linkData = JSON.parse(decodedStr);
+          targetUrl = linkData.url || '';
+          // 计算有效期（创建时间+有效期天数）
+          expireTime = linkData.created ? (linkData.created + (linkData.expire_days || 0) * 86400) : 0;
+        } catch (e) {
+          // 旧版：纯URL格式
+          targetUrl = decodedStr;
+        }
+
+        // 校验URL有效性
+        if (!targetUrl || !targetUrl.includes('http')) {
+          showError('无效的跳转地址', '链接中未包含合法的网址（需以http/https开头）');
+          return;
+        }
+
+        // 校验有效期
+        const now = Date.now() / 1000;
+        if (expireTime > 0 && now > expireTime) {
+          showError('链接已过期', `该链接有效期至${new Date(expireTime * 1000).toLocaleString()}，请联系管理员微信KMHSLXS`);
+          return;
+        }
+
+        // 隐藏加载动画，显示iframe并跳转
+        const loadingContainer = document.getElementById('loadingContainer');
+        const jumpIframe = document.getElementById('jumpIframe');
+        
+        setTimeout(function() {
+          loadingContainer.style.display = 'none';
+          jumpIframe.src = targetUrl;
+          jumpIframe.style.display = 'block';
+          // 绑定鼠标滚轮
+          bindMouseWheel(jumpIframe);
+        }, 1500);
+
+      } catch (e) {
+        // 捕获所有解码/解析错误
+        showError('链接解析失败', `错误详情：${e.message}<br>请尝试重新生成链接`);
+        console.error('跳转失败：', e);
+      }
+    }
+
+    // 4. 显示错误提示
+    function showError(title, desc) {
+      const loadingContainer = document.getElementById('loadingContainer');
+      const errorBox = document.getElementById('errorBox');
+      const errorTitle = document.getElementById('errorTitle');
+      const errorDesc = document.getElementById('errorDesc');
+
+      loadingContainer.style.display = 'none';
+      errorBox.style.display = 'block';
+      errorTitle.textContent = title;
+      errorDesc.innerHTML = desc;
+    }
+
+    // 5. 页面加载完成后执行跳转
+    window.onload = function() {
+      jumpToTarget();
+    };
+
+    // 6. 兼容旧版浏览器
+    if (!window.URLSearchParams) {
+      window.URLSearchParams = function(search) {
+        const params = {};
+        search = search.substring(1).split('&');
+        for (let i = 0; i < search.length; i++) {
+          const pair = search[i].split('=');
+          params[decodeURIComponent(pair[0])] = decodeURIComponent(pair[1] || '');
+        }
+        this.get = function(key) {
+          return params[key] || null;
+        };
+      };
+    }
+  </script>
+</body>
+</html>
